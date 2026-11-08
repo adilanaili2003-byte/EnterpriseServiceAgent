@@ -26,3 +26,15 @@ htmlcov/
 # OS
 .DS_Store
 Thumbs.db
+
+# Python Type Checking / Linting
+.mypy_cache/
+.ruff_cache/
+.pyright/
+
+# Model Cache
+.cache/
+models/
+
+# Local Vector Database
+data/vector_store/
