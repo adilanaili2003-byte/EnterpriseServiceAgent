@@ -33,7 +33,7 @@ async def chat_completion(
 
     Args:
         messages: 对话消息列表
-        model: 使用的模型，默认 Flash
+        model: 使用的模型，默认 deepseek-chat
         temperature: 控制回答的随机性
         max_tokens: 最大输出 Token 数
 
@@ -54,11 +54,6 @@ async def chat_completion(
             temperature=temperature,
             max_tokens=max_tokens,
             stream=False,
-            extra_body={
-                "thinking": {
-                    "type": "disabled"
-                }
-            },
         )
 
         content = response.choices[0].message.content

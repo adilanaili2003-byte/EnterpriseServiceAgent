@@ -24,10 +24,10 @@ DEEPSEEK_BASE_URL = "https://api.deepseek.com"
 # ==============================
 
 # 默认模型：日常任务
-DEEPSEEK_MODEL = "deepseek-flash"
+DEEPSEEK_MODEL = "deepseek-chat"
 
 # 高性能模型：复杂推理任务
-DEEPSEEK_PRO_MODEL = "deepseek-v4-pro"
+DEEPSEEK_PRO_MODEL = "deepseek-reasoner"
 
 
 def validate_config():
