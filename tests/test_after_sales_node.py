@@ -8,7 +8,10 @@ def run_node(message: str):
     with patch(
         "app.agents.nodes.answer_with_rag",
         new_callable=AsyncMock,
-        return_value="绗﹀悎鍩虹鐢宠鏉′欢锛屽彲浠ヨ繘鍏ヤ汉宸ュ鏍告祦绋嬶紝浣嗗皻鏈幏寰楁渶缁堟壒鍑嗐€?,
+        return_value=(
+            "符合基础申请条件，可以进入人工审核流程，"
+            "但尚未获得最终批准。"
+        ),
     ):
         return asyncio.run(
             after_sales_response({
@@ -18,35 +21,35 @@ def run_node(message: str):
 
 
 def test_after_sales_with_valid_order():
-    """娴嬭瘯鏈夋晥璁㈠崟鐨勯€€娆剧敵璇枫€?""
+    """测试有效订单的退款申请。"""
 
     result = run_node(
-        "鎴戠殑璁㈠崟 ORD202611001 鏈夎川閲忛棶棰橈紝鎴戞兂鐢宠閫€娆俱€?
+        "我的订单 ORD202611001 有质量问题，我想申请退款。"
     )
 
     assert result["status"] == "success"
     assert result["order_id"] == "ORD202611001"
     assert result["request_type"] == "refund"
     assert result["eligibility_result"]["eligible"] is True
-    assert "浜哄伐瀹℃牳" in result["answer"]
+    assert "人工审核" in result["answer"]
 
 
 def test_after_sales_without_order_id():
-    """娴嬭瘯鐢ㄦ埛娌℃湁鎻愪緵璁㈠崟缂栧彿銆?""
+    """测试用户没有提供订单编号。"""
 
     result = run_node(
-        "鎴戠殑鍟嗗搧鏈夎川閲忛棶棰橈紝鎴戞兂鐢宠閫€娆俱€?
+        "我的商品有质量问题，我想申请退款。"
     )
 
     assert result["status"] == "success"
-    assert "璁㈠崟缂栧彿" in result["answer"]
+    assert "订单编号" in result["answer"]
 
 
 def test_after_sales_order_not_found():
-    """娴嬭瘯涓嶅瓨鍦ㄧ殑璁㈠崟銆?""
+    """测试不存在的订单。"""
 
     result = run_node(
-        "鎴戠殑璁㈠崟 ORD999999999 鏈夐棶棰橈紝鎴戞兂鐢宠閫€娆俱€?
+        "我的订单 ORD999999999 有问题，我想申请退款。"
     )
 
     assert result["status"] == "success"
@@ -55,53 +58,60 @@ def test_after_sales_order_not_found():
 
 
 def test_after_sales_missing_request_type():
-    """娴嬭瘯鐢ㄦ埛鎻愪緵璁㈠崟缂栧彿浣嗘病鏈夋槑纭敵璇风被鍨嬨€?""
+    """测试用户提供订单编号但没有明确申请类型。"""
 
     result = run_node(
-        "鎴戠殑璁㈠崟 ORD202611001 鏈夎川閲忛棶棰樸€?
+        "我的订单 ORD202611001 有质量问题。"
     )
 
     assert result["status"] == "success"
-    assert "閫€娆捐繕鏄€€璐? in result["answer"]
+    assert "退款还是退货" in result["answer"]
+
 
 def test_after_sales_rag_failure():
-    """娴嬭瘯 RAG 澶辫触鏃朵粛鐒惰繑鍥炶鍒欏紩鎿庣粨鏋溿€?""
+    """测试 RAG 失败时仍然返回规则引擎结果。"""
 
     with patch(
         "app.agents.nodes.answer_with_rag",
         new_callable=AsyncMock,
-        side_effect=RuntimeError("妯℃嫙 RAG 鏈嶅姟寮傚父"),
+        side_effect=RuntimeError("模拟 RAG 服务异常"),
     ):
         result = asyncio.run(
             after_sales_response({
-                "user_message": "鎴戠殑璁㈠崟 ORD202611001 鏈夎川閲忛棶棰橈紝鎴戞兂鐢宠閫€娆俱€?
+                "user_message": (
+                    "我的订单 ORD202611001 有质量问题，"
+                    "我想申请退款。"
+                )
             })
         )
 
     assert result["status"] == "success"
     assert result["eligibility_result"]["eligible"] is True
-    assert "浜哄伐瀹℃牳" in result["answer"]
+    assert "人工审核" in result["answer"]
+
 
 def test_general_response_uses_top_5():
-    """娴嬭瘯鏅€氬挩璇㈣妭鐐逛娇鐢?Top 5 妫€绱㈢煡璇嗗簱銆?""
+    """测试普通咨询节点使用 Top 5 检索知识库。"""
+
+    mock_answer = "普通退货期限为签收后7天。"
 
     with patch(
         "app.agents.nodes.answer_with_rag",
         new_callable=AsyncMock,
-        return_value="鏅€氶€€璐ф湡闄愪负绛炬敹鍚?澶┿€?,
+        return_value=mock_answer,
     ) as mock_rag:
 
         result = asyncio.run(
             general_response({
-                "user_message": "鍟嗗搧绛炬敹瓒呰繃7澶╄繕鑳界敵璇烽€€璐у悧锛?
+                "user_message": "商品签收超过7天还能申请退货吗？"
             })
         )
 
     assert result["status"] == "success"
-    assert result["answer"] == "鏅€氶€€璐ф湡闄愪负绛炬敹鍚?澶┿€?
+    assert result["answer"] == mock_answer
 
     mock_rag.assert_awaited_once_with(
-        question="鍟嗗搧绛炬敹瓒呰繃7澶╄繕鑳界敵璇烽€€璐у悧锛?,
+        question="商品签收超过7天还能申请退货吗？",
         top_k=5,
         conversation_history=[],
     )
