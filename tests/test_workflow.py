@@ -28,10 +28,21 @@ def test_general_intent(monkeypatch):
     async def mock_chat_completion(**kwargs):
         return "general"
 
+    async def mock_answer_with_rag(**kwargs):
+        return "模拟普通咨询回答。"
+
+    # Mock 意图识别模型调用
     monkeypatch.setattr(
         intent_classifier,
         "chat_completion",
         mock_chat_completion
+    )
+
+    # Mock RAG 回答，避免请求真实 DeepSeek API
+    monkeypatch.setattr(
+        nodes,
+        "answer_with_rag",
+        mock_answer_with_rag
     )
 
     result = run_workflow(

@@ -117,17 +117,21 @@ async def after_sales_response(state: AgentState) -> dict:
     售后业务处理节点。
 
     执行步骤：
-    1. 提取订单编号。
-    2. 识别售后申请类型。
-    3. 查询订单。
-    4. 调用售后规则引擎。
-    5. 根据判断结果生成回复。
-    6. 结合 RAG 检索结果补充政策解释。
+    1. 提取订单编号和申请类型。
+    2. 查询订单。
+    3. 如果是普通订单查询，直接返回订单信息。
+    4. 如果是售后办理，调用售后规则引擎。
+    5. 结合 RAG 检索结果补充政策解释。
+    6. 保存订单上下文和历史对话。
     """
 
-    user_message = state.get("user_message", "")
+    user_message = state.get("user_message", "").strip()
 
-    # 第一步：提取订单编号和申请类型
+    # 第一步：读取历史对话
+    chat_history = state.get("chat_history", [])
+    conversation_history = chat_history[-6:]
+
+    # 第二步：提取订单编号和申请类型
     order_id = (
         extract_order_id(user_message)
         or state.get("order_id")
@@ -138,32 +142,28 @@ async def after_sales_response(state: AgentState) -> dict:
         or state.get("request_type")
     )
 
-    # 第二步：检查订单编号
+    # 第三步：检查订单编号
     if not order_id:
+        answer = (
+            "为了查询您的订单或售后申请，请提供订单编号。"
+            "例如：ORD202611001。"
+        )
+
+        updated_history = conversation_history + [
+            {"role": "user", "content": user_message},
+            {"role": "assistant", "content": answer},
+        ]
+
         return {
+            "chat_history": updated_history[-6:],
             "request_type": request_type,
-            "answer": (
-                "为了查询您的售后申请，请提供订单编号。"
-                "例如：ORD202611001。"
-            ),
+            "answer": answer,
             "status": "success",
             "error": "",
         }
 
-    # 第三步：检查申请类型
-    if not request_type:
-        return {
-            "order_id": order_id,
-            "answer": (
-                f"已获取订单编号 {order_id}。"
-                "请问您希望申请退款还是退货？"
-            ),
-            "status": "success",
-            "error": "",
-        }
-
-    # 第四步：查询订单
     try:
+        # 第四步：查询订单
         order = get_order_by_id(order_id)
 
         if order is None:
@@ -172,15 +172,90 @@ async def after_sales_response(state: AgentState) -> dict:
                 request_type=request_type,
             )
 
-        else:
-            # 第五步：执行售后规则判断
-            eligibility_result = check_after_sales_eligibility(
-                order=order,
-                request_type=request_type,
-                current_time=datetime.now(),
+            answer = (
+                f"暂未查询到订单 {order_id}，"
+                "请检查订单编号是否正确。"
             )
 
-        # 第六步：根据业务判断生成回复
+            updated_history = conversation_history + [
+                {"role": "user", "content": user_message},
+                {"role": "assistant", "content": answer},
+            ]
+
+            return {
+                "order_id": order_id,
+                "order_info": {},
+                "request_type": request_type,
+                "eligibility_result": eligibility_result,
+                "chat_history": updated_history[-6:],
+                "answer": answer,
+                "status": "success",
+                "error": "",
+            }
+
+        # 第五步：整理订单信息
+        order_info = order.model_dump(mode="json")
+
+        product_name = order.product_name
+        amount = order.amount
+        order_status = order.status
+
+        # 第六步：区分普通订单查询和售后办理
+        if not request_type:
+            # 判断用户是否明确在查询订单信息
+            order_query_keywords = [
+                "价格",
+                "多少钱",
+                "金额",
+                "商品名称",
+                "商品是什么",
+                "是什么商品",
+                "商品叫什么",
+                "订单状态",
+                "物流状态",
+                "发货了吗",
+                "签收了吗",
+                "订单到哪了",
+            ]
+
+            is_order_query = any(
+                keyword in user_message
+                for keyword in order_query_keywords
+            )
+
+            answer = (
+                f"订单编号：{order_id}\n"
+                f"商品名称：{product_name}\n"
+                f"订单金额：{amount} 元\n"
+                f"订单状态：{order_status}"
+            )
+
+            # 如果用户不是单纯查询订单信息，
+            # 则进一步询问售后申请类型
+            if not is_order_query:
+                answer += "\n\n请问您希望申请退款还是退货？"
+
+            updated_history = conversation_history + [
+                {"role": "user", "content": user_message},
+                {"role": "assistant", "content": answer},
+            ]
+
+            return {
+                "order_id": order_id,
+                "order_info": order_info,
+                "chat_history": updated_history[-6:],
+                "answer": answer,
+                "status": "success",
+                "error": "",
+            }
+
+        # 第七步：执行售后规则判断
+        eligibility_result = check_after_sales_eligibility(
+            order=order,
+            request_type=request_type,
+            current_time=datetime.now(),
+        )
+
         if not eligibility_result["eligible"]:
             answer = (
                 f"订单编号：{order_id}\n"
@@ -191,51 +266,62 @@ async def after_sales_response(state: AgentState) -> dict:
 
         else:
             answer = (
-                f"订单编号：{order.order_id}\n"
-                f"商品名称：{order.product_name}\n"
-                f"订单金额：{order.amount} 元\n"
-                f"订单状态：{order.status}\n"
+                f"订单编号：{order_id}\n"
+                f"商品名称：{product_name}\n"
+                f"订单金额：{amount} 元\n"
+                f"订单状态：{order_status}\n"
                 f"处理结果：符合基础售后申请条件。\n"
                 f"下一步：可以进入人工审核流程。\n"
                 f"注意：这不代表退款或退货已经批准。"
             )
 
-        # 第七步：结合售后政策生成回答
+        # 第八步：构建业务上下文
         business_context = (
             f"订单编号：{order_id}\n"
+            f"商品名称：{product_name}\n"
+            f"订单金额：{amount} 元\n"
+            f"订单状态：{order_status}\n"
             f"申请类型：{request_type}\n"
-            f"订单查询结果：{'订单存在' if order is not None else '订单不存在'}\n"
+            "订单查询结果：订单存在\n"
             f"售后资格判断："
             f"{'符合基础申请条件' if eligibility_result['eligible'] else '不符合基础申请条件'}\n"
             f"规则引擎判断原因：{eligibility_result.get('reason', '未提供')}\n"
             "注意：符合基础申请条件不代表最终审批通过。"
         )
 
-        # RAG 失败时保留原有规则引擎回答
+        # 第九步：结合 RAG 补充售后政策
         try:
             rag_answer = await answer_with_rag(
                 question=user_message,
                 top_k=3,
                 business_context=business_context,
+                conversation_history=conversation_history,
             )
 
             if rag_answer:
-                answer = rag_answer
+                # RAG 负责补充政策解释，不覆盖订单事实和规则判断
+                answer = (
+                    f"{answer}\n\n"
+                    f"相关政策说明：\n{rag_answer}"
+                )
 
         except Exception:
             logger.exception(
-                "售后政策 RAG 回答失败，保留规则引擎回答"
+                "售后政策 RAG 回答失败，保留原有规则引擎回答"
             )
+
+        # 第十步：保存本轮对话
+        updated_history = conversation_history + [
+            {"role": "user", "content": user_message},
+            {"role": "assistant", "content": answer},
+        ]
 
         return {
             "order_id": order_id,
             "request_type": request_type,
-            "order_info": (
-                order.model_dump(mode="json")
-                if order is not None
-                else {}
-            ),
+            "order_info": order_info,
             "eligibility_result": eligibility_result,
+            "chat_history": updated_history[-6:],
             "answer": answer,
             "status": "success",
             "error": "",

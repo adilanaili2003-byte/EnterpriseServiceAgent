@@ -84,11 +84,35 @@ async def classify_intent(state: AgentState) -> dict:
     user_message = state.get("user_message", "").strip()
 
     if not user_message:
-        return {
-            "intent": "general",
-            "status": "error",
-            "error": "用户消息不能为空",
-        }
+            return {
+                "intent": "general",
+                "status": "error",
+                "error": "用户消息不能为空",
+            }
+
+    # 如果当前会话已经存在订单上下文，
+    # 优先识别用户是否在追问该订单。
+    has_order_context = bool(
+        state.get("order_id") or state.get("order_info")
+    )
+
+    order_follow_up_patterns = [
+        r"(价格|多少钱|金额|商品名称|商品是什么|是什么商品|商品叫什么)",
+        r"(订单状态|物流状态|发货了吗|签收了吗|订单到哪了)",
+        r"(它|这个商品|这件商品|这笔订单).*(价格|金额|状态|名称)",
+    ]
+
+    if has_order_context and not ORDER_ID_PATTERN.search(user_message):
+        if any(
+            re.search(pattern, user_message)
+            for pattern in order_follow_up_patterns
+        ):
+            return {
+                "intent": "after_sales",
+                "status": "success",
+                "error": "",
+            }
+
 
     try:
         # 第一步：规则优先识别。
