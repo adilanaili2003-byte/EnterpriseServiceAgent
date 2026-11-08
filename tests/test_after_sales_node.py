@@ -115,3 +115,22 @@ def test_general_response_uses_top_5():
         top_k=5,
         conversation_history=[],
     )
+
+def test_after_sales_rule_engine_failure():
+    """测试售后规则引擎异常时是否返回友好错误提示。"""
+
+    with patch(
+        "app.agents.nodes.check_after_sales_eligibility",
+        side_effect=RuntimeError("模拟规则引擎异常"),
+    ):
+        result = asyncio.run(
+            after_sales_response({
+                "user_message": (
+                    "我的订单 ORD202611001 有质量问题，"
+                    "我想申请退款。"
+                )
+            })
+        )
+
+    assert result["status"] == "error"
+    assert "售后业务处理暂时出现异常" in result["answer"]
