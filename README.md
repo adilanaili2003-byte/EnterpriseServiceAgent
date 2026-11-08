@@ -6,6 +6,20 @@ EnterpriseServiceAgent 是一个面向企业售后服务场景的智能客服 Ag
 
 项目采用 FastAPI 提供 API 服务，通过 LangGraph 实现多节点 Agent 工作流，并使用 BGE Embedding 和 Qdrant 构建本地向量知识库。
 
+## 项目截图
+
+> 以下为占位，请替换为实际运行截图（建议存放于 `docs/images/` 目录）。系统架构流程图见「3. 系统架构」中的 Mermaid 图。
+
+### 前端对话界面
+
+<!-- 替换为实际运行截图：取消下面这行注释并替换图片路径 -->
+<!-- ![前端对话界面](docs/images/frontend.png) -->
+
+### API 文档界面
+
+<!-- 替换为实际运行截图：取消下面这行注释并替换图片路径 -->
+<!-- ![Swagger API 文档](docs/images/swagger.png) -->
+
 ## 1. 项目背景
 
 企业售后服务场景中，用户通常会提出以下问题：
