@@ -8,17 +8,13 @@ EnterpriseServiceAgent 是一个面向企业售后服务场景的智能客服 Ag
 
 ## 项目截图
 
-> 以下为占位，请替换为实际运行截图（建议存放于 `docs/images/` 目录）。系统架构流程图见「3. 系统架构」中的 Mermaid 图。
-
 ### 前端对话界面
 
-<!-- 替换为实际运行截图：取消下面这行注释并替换图片路径 -->
-<!-- ![前端对话界面](docs/images/frontend.png) -->
+![前端对话界面](docs/images/frontend.png)
 
-### API 文档界面
+### 售后业务演示
 
-<!-- 替换为实际运行截图：取消下面这行注释并替换图片路径 -->
-<!-- ![Swagger API 文档](docs/images/swagger.png) -->
+![售后业务演示（退货场景）](docs/images/after-sales-demo.png)
 
 ## 1. 项目背景
 
